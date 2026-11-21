@@ -1,0 +1,17 @@
+// Contract preview — not integration-tested. GitHub Actions is the tested path.
+pipeline {
+  agent any
+  environment {
+    SENTRA_URL = 'https://sentra.example.com'
+    SENTRA_PROJECT = 'prj_xxx'
+    SENTRA_TOKEN = credentials('sentra-token')   // Jenkins credential (secret text), scoped to this job
+  }
+  stages {
+    stage('SBOM + gate') {
+      steps {
+        sh 'syft "$IMAGE" -o cyclonedx-json > sbom.cdx.json'
+        sh 'node scripts/sentra-ci.mjs upload --sbom sbom.cdx.json --service api --digest "$IMAGE_DIGEST" --commit "$GIT_COMMIT" --run-url "$BUILD_URL" --wait --fail-mode open'
+      }
+    }
+  }
+}

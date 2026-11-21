@@ -1,0 +1,37 @@
+# Sentra — GitHub Actions (tested path). Container build → CycloneDX SBOM (Syft) → upload → deterministic gate.
+# Security notes:
+#   * Uses `pull_request` (not `pull_request_target`): fork PRs never receive SENTRA_TOKEN; the upload step is skipped for forks.
+#   * Pin every action to a reviewed commit SHA in your repository (tags shown for readability).
+#   * SENTRA_TOKEN is a project-scoped, expiring token created in Sentra → CI/CD setup; rotate before expiry.
+name: sentra
+on:
+  push: { branches: [main] }
+  pull_request: {}
+permissions: { contents: read }
+env:
+  SENTRA_URL: https://sentra.example.com
+  SENTRA_PROJECT: prj_xxx
+  SENTRA_SERVICE: api
+jobs:
+  build-sbom-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - name: Build image
+        id: build
+        run: |
+          docker build -t app:${{ github.sha }} .
+          echo "digest=$(docker inspect --format='{{.Id}}' app:${{ github.sha }})" >> "$GITHUB_OUTPUT"
+      - name: CycloneDX SBOM (Syft)
+        uses: anchore/sbom-action@v0
+        with: { image: "app:${{ github.sha }}", format: cyclonedx-json, output-file: sbom.cdx.json }
+      - name: Upload SBOM and evaluate gate
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        env: { SENTRA_TOKEN: "${{ secrets.SENTRA_TOKEN }}" }
+        run: >
+          node scripts/sentra-ci.mjs upload --sbom sbom.cdx.json --service "$SENTRA_SERVICE"
+          --digest "${{ steps.build.outputs.digest }}" --commit "${{ github.sha }}" --branch "${{ github.ref_name }}"
+          --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          --wait --timeout 180 --fail-mode open

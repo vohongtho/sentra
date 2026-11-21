@@ -1,0 +1,132 @@
+openapi: 3.1.0
+info:
+  title: Sentra CI/CD contracts
+  version: "1.0.0"
+  description: >
+    Versioned ingestion, deployment and policy-evaluation endpoints. Authenticate with a project-scoped CI token
+    (`Authorization: Bearer stk_…`). A signed-in session with the matching project permission is also accepted.
+    The full route list (session API) is generated at runtime from the router at GET /api/openapi.json.
+servers: [{ url: https://sentra.example.com }]
+security: [{ ciToken: [] }]
+components:
+  securitySchemes:
+    ciToken: { type: http, scheme: bearer, description: "Project-scoped, expiring, revocable token. Scopes: ingest:sbom, deployments:write, policy:read." }
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties: { error: { type: string, examples: [VALIDATION_ERROR, SCOPE_MISMATCH, SBOM_INVALID, TOKEN_INVALID] }, message: { type: string }, request_id: { type: string } }
+    Receipt:
+      type: object
+      required: [ingestion_id, status, status_url, content_sha256, artifact_digest, component_count, idempotency_key]
+      properties:
+        ingestion_id: { type: string }
+        status: { type: string, enum: [accepted, processing, completed, failed, rejected] }
+        status_url: { type: string }
+        received_at: { type: string, format: date-time }
+        content_sha256: { type: string }
+        artifact_digest: { type: string }
+        commit_sha: { type: string }
+        format: { type: string, enum: [cyclonedx, spdx] }
+        component_count: { type: integer }
+        idempotency_key: { type: string }
+        duplicate: { type: boolean }
+paths:
+  /api/v1/ingestions/sbom:
+    post:
+      summary: Upload a CycloneDX or SPDX JSON SBOM for an immutable build artifact
+      parameters:
+        - { name: Idempotency-Key, in: header, required: false, schema: { type: string }, description: "Defaults to a hash of project, service, digest and document." }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [metadata, document]
+              properties:
+                metadata:
+                  type: object
+                  required: [project_id, service_id, commit_sha, artifact_digest, source_timestamp]
+                  properties:
+                    organization_id: { type: string, description: "Optional; rejected if it does not match the project." }
+                    project_id: { type: string }
+                    service_id: { type: string, description: "Service id or key within the project." }
+                    environment_id: { type: string }
+                    commit_sha: { type: string, pattern: "^[a-fA-F0-9]{7,64}$" }
+                    branch: { type: string }
+                    ci_run_url: { type: string, format: uri, pattern: "^https://" }
+                    application_version: { type: string }
+                    artifact_digest: { type: string, pattern: "^sha(256|384|512):[a-f0-9]{64,128}$", description: "Image or artifact digest. Tags are rejected." }
+                    source_timestamp: { type: string, format: date-time }
+                document: { type: object, description: "CycloneDX 1.2–1.6 or SPDX 2.2/2.3 JSON. Max 10 MB." }
+      responses:
+        "202": { description: Accepted for asynchronous processing, headers: { Location: { schema: { type: string } } }, content: { application/json: { schema: { $ref: "#/components/schemas/Receipt" } } } }
+        "200": { description: Duplicate; the original receipt is returned, content: { application/json: { schema: { $ref: "#/components/schemas/Receipt" } } } }
+        "400": { description: Invalid metadata, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "401": { description: Missing, expired or revoked token }
+        "403": { description: Token scope or service scope does not allow this upload }
+        "404": { description: Project not accessible to this token }
+        "413": { description: Document too large }
+        "422": { description: Malformed or unsupported SBOM, or service/environment not in project }
+  /api/v1/ingestions/{id}:
+    get:
+      summary: Ingestion status and receipt
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [accepted, processing, completed, failed, rejected] }
+                  receipt: { $ref: "#/components/schemas/Receipt" }
+                  stats: { type: object, properties: { components: { type: integer }, parse_warnings: { type: integer } } }
+                  policy_evaluation_url: { type: [string, "null"] }
+        "404": { description: Not found or not accessible }
+  /api/v1/deployments:
+    post:
+      summary: Record that an artifact was rolled out to an environment
+      description: The artifact must have been ingested. Recording triggers reassessment and verification of findings in that environment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, service_id, environment_id, artifact_digest, deployed_at]
+              properties:
+                project_id: { type: string }
+                service_id: { type: string }
+                environment_id: { type: string }
+                artifact_digest: { type: string }
+                deployed_at: { type: string, format: date-time }
+                asset_id: { type: string }
+      responses:
+        "201": { description: Recorded, content: { application/json: { schema: { type: object, properties: { deployment_id: { type: string }, duplicate: { type: boolean } } } } } }
+        "200": { description: Artifact already current in this environment }
+        "422": { description: Unknown artifact digest }
+  /api/v1/policy-evaluations/{id}:
+    get:
+      summary: Deterministic gate decision for an ingestion
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200":
+          description: Evaluation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  decision: { type: string, enum: [pass, warn, fail] }
+                  mode: { type: string, enum: [observe, block_new] }
+                  fail_mode: { type: string, enum: [open, closed] }
+                  exit_code: { type: integer, description: "0 pass/warn, 1 fail" }
+                  policy_version: { type: [integer, "null"] }
+                  summary: { type: object }
+                  violations:
+                    type: array
+                    items: { type: object, properties: { advisory_id: { type: string }, package: { type: string }, version: { type: string }, fixed: { type: [string, "null"] }, severity: { type: string }, exploitation: { type: string }, new: { type: boolean }, excepted: { type: boolean }, rule: { type: string } } }

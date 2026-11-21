@@ -1,0 +1,11 @@
+# Contract preview — not integration-tested. GitHub Actions is the tested path.
+# SENTRA_TOKEN: masked + protected CI/CD variable (not exposed to merge requests from forks).
+sentra_sbom:
+  image: node:24
+  stage: test
+  rules: [{ if: '$CI_PIPELINE_SOURCE == "push"' }]
+  variables: { SENTRA_URL: "https://sentra.example.com", SENTRA_PROJECT: "prj_xxx" }
+  script:
+    - curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin   # pin a reviewed version
+    - syft "$IMAGE" -o cyclonedx-json > sbom.cdx.json
+    - node scripts/sentra-ci.mjs upload --sbom sbom.cdx.json --service api --digest "$IMAGE_DIGEST" --commit "$CI_COMMIT_SHA" --branch "$CI_COMMIT_REF_NAME" --run-url "$CI_JOB_URL" --wait --fail-mode open

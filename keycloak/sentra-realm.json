@@ -1,0 +1,51 @@
+{
+  "realm": "sentra",
+  "enabled": true,
+  "displayName": "Sentra (local development realm)",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 3600,
+  "ssoSessionMaxLifespan": 36000,
+  "groups": [
+    { "name": "sentra-admins" },
+    { "name": "sentra-security" },
+    { "name": "tts-team" },
+    { "name": "kiosk-team" }
+  ],
+  "clients": [
+    {
+      "clientId": "sentra",
+      "name": "Sentra BFF",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "CHANGE-ME-local-dev-only",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:8080/api/auth/callback"],
+      "webOrigins": ["http://localhost:8080"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:8080/*",
+        "backchannel.logout.url": "http://app:8080/api/auth/backchannel-logout",
+        "backchannel.logout.session.required": "true",
+        "backchannel.logout.revoke.offline.tokens": "true"
+      },
+      "protocolMappers": [
+        { "name": "groups", "protocol": "openid-connect", "protocolMapper": "oidc-group-membership-mapper", "config": { "full.path": "false", "id.token.claim": "true", "access.token.claim": "true", "userinfo.token.claim": "true", "claim.name": "groups" } }
+      ]
+    }
+  ],
+  "users": [
+    { "username": "alice", "email": "alice@demo.sentra.local", "emailVerified": true, "firstName": "Alice", "lastName": "Admin", "enabled": true, "groups": ["sentra-admins"], "credentials": [{ "type": "password", "value": "alice-dev-only", "temporary": false }] },
+    { "username": "sam", "email": "sam@demo.sentra.local", "emailVerified": true, "firstName": "Sam", "lastName": "Analyst", "enabled": true, "groups": ["sentra-security"], "credentials": [{ "type": "password", "value": "sam-dev-only", "temporary": false }] },
+    { "username": "pat", "email": "pat@demo.sentra.local", "emailVerified": true, "firstName": "Pat", "lastName": "Owner", "enabled": true, "groups": ["tts-team"], "credentials": [{ "type": "password", "value": "pat-dev-only", "temporary": false }] },
+    { "username": "kim", "email": "kim@demo.sentra.local", "emailVerified": true, "firstName": "Kim", "lastName": "Lead", "enabled": true, "groups": ["kiosk-team"], "credentials": [{ "type": "password", "value": "kim-dev-only", "temporary": false }] }
+  ]
+}

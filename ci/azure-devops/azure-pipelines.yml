@@ -1,0 +1,10 @@
+# Contract preview — not integration-tested. GitHub Actions is the tested path.
+variables:
+  SENTRA_URL: https://sentra.example.com
+  SENTRA_PROJECT: prj_xxx
+steps:
+  - script: syft "$(IMAGE)" -o cyclonedx-json > sbom.cdx.json
+    displayName: CycloneDX SBOM
+  - script: node scripts/sentra-ci.mjs upload --sbom sbom.cdx.json --service api --digest "$(IMAGE_DIGEST)" --commit "$(Build.SourceVersion)" --run-url "$(System.CollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)" --wait --fail-mode open
+    displayName: Sentra upload + gate
+    env: { SENTRA_TOKEN: $(SENTRA_TOKEN) }   # secret pipeline variable; not available to fork PR builds

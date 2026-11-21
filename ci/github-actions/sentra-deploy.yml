@@ -1,0 +1,18 @@
+# Record a deployment AFTER the rollout succeeded. A build upload alone never proves deployment.
+name: sentra-deploy-record
+on:
+  workflow_dispatch:
+    inputs:
+      environment: { required: true, type: choice, options: [uat, production] }
+      digest: { required: true, description: "Immutable digest actually rolled out (sha256:...)" }
+permissions: { contents: read }
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}   # protect production with required reviewers
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - env: { SENTRA_URL: https://sentra.example.com, SENTRA_PROJECT: prj_xxx, SENTRA_TOKEN: "${{ secrets.SENTRA_TOKEN }}" }
+        run: node scripts/sentra-ci.mjs deploy --service api --environment "${{ inputs.environment }}" --digest "${{ inputs.digest }}"
