@@ -3,7 +3,7 @@
 Status as of 21 November 2026. Statuses are cumulative and independent:
 
 - **Implemented**: the code exists and runs in the application.
-- **Tested**: covered by automated tests in `tests/`. There are 61 tests: 59 pass on embedded PGlite with 2 skipped (they need PostgreSQL), and all 61 pass on PostgreSQL 16 running as a non-superuser. The React frontend type-checks under `tsc --strict`, and all 50 routes were exercised in a browser.
+- **Tested**: covered by automated tests in `tests/`. There are 62 tests: 60 pass on embedded PGlite with 2 skipped (they need PostgreSQL); the previous 61 all pass on PostgreSQL 16 running as a non-superuser. The React frontend type-checks under `tsc --strict`, and all 50 routes were exercised in a browser.
 - **Connected**: exercised against a real running system rather than a test double.
 - **Production validated**: run on production infrastructure with production data. Nothing has reached this state.
 
@@ -94,7 +94,7 @@ A test double is a local HTTP server shaped like the provider's public API. It p
 | Capability | Implemented | Tested | Connected | Notes |
 |---|---|---|---|---|
 | Eight workflows (submitted-evidence analysis, discovery, research, impact, remediation, verification, portfolio, Copilot) | yes | evidence analysis, impact and Copilot | n/a | Evidence analysis replaces the handoff's Live AI analysis |
-| Provider key stored by an admin through the UI (sealed), with a real connection test | yes | yes (Messages API test double) | no | A server environment key takes precedence |
+| Provider key stored by an admin through the UI (sealed), with a real connection test | yes | yes (Messages API test double) | no | A server `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` (Console OAuth bearer, also tested) takes precedence. A Claude.ai subscription cannot be used. |
 | Tool authorization, untrusted-content wrapping, injection resistance | yes | yes | n/a | |
 | Claim validation, "not affected" guard, human approval | yes | yes | n/a | |
 | Budgets, cancellation, checkpoints, reruns | yes | budget and checkpoint writes | n/a | Resume after a crash is untested |

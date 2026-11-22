@@ -163,9 +163,9 @@ async function explainChange(db, previousId, next) {
 
 // ------------------------------------------------------------------ Claude provider (manual tool loop)
 async function runAnthropic(app, run, pol, rt, ctrl) {
-  const apiKey = app.cfg.ai.anthropicApiKey || (await orgAiKey(app, run.org_id));
-  if (!apiKey) throw new Error('Anthropic provider selected but ANTHROPIC_API_KEY is not configured on the server.');
-  const client = new Anthropic({ apiKey, maxRetries: 2, timeout: 120_000, ...(app.cfg.ai.baseUrl ? { baseURL: app.cfg.ai.baseUrl } : {}) });
+  const cred = await resolveCredential(app, run.org_id);
+  if (!cred) throw new Error('Anthropic provider selected but neither ANTHROPIC_API_KEY nor ANTHROPIC_AUTH_TOKEN is configured on the server, and no organization key is stored.');
+  const client = new Anthropic({ ...cred.opts, maxRetries: 2, timeout: 120_000, ...(app.cfg.ai.baseUrl ? { baseURL: app.cfg.ai.baseUrl } : {}) });
   const model = run.model || app.cfg.ai.model;
   const tools = [...[...rt.allowed].map(n => ({ name: n, description: TOOL_DEFS[n].description, input_schema: TOOL_DEFS[n].input_schema, strict: true })), SUBMIT_TOOL];
   const cp = (await app.db.one('SELECT checkpoint FROM investigations WHERE id=$1', [run.id])).checkpoint;
@@ -233,15 +233,22 @@ export async function orgAiKey(app, orgId) {
   const { getSecretValue } = await import('../services/secrets.mjs');
   return getSecretValue(app.db, orgId, s.id);
 }
+/** Credential precedence: server API key, server OAuth bearer token, then the org-stored API key. */
+async function resolveCredential(app, orgId) {
+  if (app.cfg.ai.anthropicApiKey) return { source: 'server', opts: { apiKey: app.cfg.ai.anthropicApiKey, authToken: null } };
+  if (app.cfg.ai.anthropicAuthToken) return { source: 'server_oauth', opts: { apiKey: null, authToken: app.cfg.ai.anthropicAuthToken } };
+  const k = await orgAiKey(app, orgId);
+  return k ? { source: 'organization', opts: { apiKey: k, authToken: null } } : null;
+}
 /** Real connectivity test: one minimal Messages API call; records the provider's actual response. */
 export async function testProvider(app, orgId) {
-  const apiKey = app.cfg.ai.anthropicApiKey || (await orgAiKey(app, orgId));
-  if (!apiKey) return { ok: false, error: 'No Anthropic API key is configured on the server or for this organization.' };
-  const client = new Anthropic({ apiKey, maxRetries: 0, timeout: 30_000, ...(app.cfg.ai.baseUrl ? { baseURL: app.cfg.ai.baseUrl } : {}) });
+  const cred = await resolveCredential(app, orgId);
+  if (!cred) return { ok: false, error: 'No Anthropic API key or auth token is configured on the server or for this organization.' };
+  const client = new Anthropic({ ...cred.opts, maxRetries: 0, timeout: 30_000, ...(app.cfg.ai.baseUrl ? { baseURL: app.cfg.ai.baseUrl } : {}) });
   const started = Date.now();
   try {
     const r = await client.messages.create({ model: app.cfg.ai.model, max_tokens: 16, output_config: { effort: 'low' }, messages: [{ role: 'user', content: 'Reply with the word ok.' }] });
-    return { ok: true, model: r.model, stop_reason: r.stop_reason, usage: r.usage, latency_ms: Date.now() - started, key_source: app.cfg.ai.anthropicApiKey ? 'server' : 'organization' };
+    return { ok: true, model: r.model, stop_reason: r.stop_reason, usage: r.usage, latency_ms: Date.now() - started, key_source: cred.source };
   } catch (e) {
     return { ok: false, error: e instanceof Anthropic.AuthenticationError ? 'Provider rejected the API key.' : e.message, status: e.status || null, latency_ms: Date.now() - started };
   }

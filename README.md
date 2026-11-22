@@ -14,7 +14,7 @@ Requirements: Node.js 24. Docker is optional.
 ```bash
 npm ci
 npm run dev            # builds the React UI, then serves http://localhost:8080 with embedded PostgreSQL (PGlite) and synthetic demo data
-npm test               # 61 tests; TEST_DATABASE_URL=postgres://… runs them on real PostgreSQL (incl. RLS)
+npm test               # 62 tests; TEST_DATABASE_URL=postgres://… runs them on real PostgreSQL (incl. RLS)
 npm run typecheck      # strict TypeScript check of the React frontend
 ```
 
@@ -25,11 +25,11 @@ cp env.example .env    # fill in the placeholders
 docker compose up --build
 ```
 
-Without `ANTHROPIC_API_KEY`, investigations run on the offline deterministic planner. With a key and `AI_PROVIDER=anthropic`, they use `claude-opus-5-5`. Model calls are billed by Anthropic.
+Without a credential, investigations run on the offline deterministic planner. With `ANTHROPIC_API_KEY` (or `ANTHROPIC_AUTH_TOKEN`, an OAuth token for a Claude Console organization) they use `claude-opus-5-5`. An admin can also store an API key in the UI under **AI agents**. A Claude.ai Pro/Max subscription cannot authenticate API calls. Model calls are billed to the Console organization.
 
 ## Verified in this build
 
-- **Tests:** 61 automated tests. 59 pass on PGlite, with 2 RLS tests skipped because they need PostgreSQL. All 61 pass on PostgreSQL 16.16 running as a non-superuser.
+- **Tests:** 62 automated tests. 60 pass on PGlite, with 2 RLS tests skipped because they need PostgreSQL. The earlier 61 all passed on PostgreSQL 16.16 running as a non-superuser.
 - **Frontend:** React + TypeScript, strict type check clean. All 50 routes and the handoff's deep links were opened in a browser with no console errors (`docs/UI-PARITY.md`).
 - **Keycloak:** browser logins through a real Keycloak 26.0 realm succeeded, standalone and in `docker compose`, with group-to-role mapping applied.
 - **Docker:** the full `docker compose up` stack runs (PostgreSQL, Keycloak, Mailpit, API, worker). Test email was delivered to its SMTP server.

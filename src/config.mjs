@@ -35,9 +35,10 @@ export function loadConfig(overrides = {}) {
     workerPollMs: int(e.WORKER_POLL_MS, 1000),
     maxUploadBytes: int(e.MAX_UPLOAD_BYTES, 10 * 1024 * 1024),
     ai: {
-      provider: e.AI_PROVIDER || (e.ANTHROPIC_API_KEY ? 'anthropic' : 'offline'),
+      provider: e.AI_PROVIDER || (e.ANTHROPIC_API_KEY || e.ANTHROPIC_AUTH_TOKEN ? 'anthropic' : 'offline'),
       model: e.AI_MODEL || 'claude-opus-5-5',
       anthropicApiKey: e.ANTHROPIC_API_KEY || '',
+      anthropicAuthToken: e.ANTHROPIC_AUTH_TOKEN || '', // OAuth bearer token for a Claude Console org (alternative to an API key)
       effort: e.AI_EFFORT || 'medium',
       baseUrl: e.ANTHROPIC_BASE_URL || undefined, // gateway/proxy or test double
     },

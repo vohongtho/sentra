@@ -53,6 +53,7 @@ services:
       RUN_SCHEDULER: "false"
       AI_PROVIDER: ${AI_PROVIDER:-offline}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_AUTH_TOKEN: ${ANTHROPIC_AUTH_TOKEN:-}
       SEED_DEMO: ${SEED_DEMO:-true}
     volumes: [objects:/data/objects]
     ports: ["127.0.0.1:8080:8080"]
